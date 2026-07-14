@@ -1,10 +1,44 @@
 [
   {
-    "id": "app1",
-    "name": "My Application (Dev)",
+    "id": "default",
+    "name": "Development",
     "allowedRedirects": [
-      "http://localhost:3001/auth/callback",
-      "http://localhost:8080/auth/callback"
+      "http://localhost/auth/callback/cas",
+      "http://localhost:80/auth/callback/cas",
+      "http://localhost/auth/callback/cas/admin",
+      "http://localhost:80/auth/callback/cas/admin",
+      "https://test.msouthwick.com/auth/callback/cas",
+      "https://test.cgcharitable.org/auth/callback/cas",
+      "https://demo.pathmark.org/auth/callback/cas"
+    ]
+  },
+  {
+    "id": "data-request",
+    "name": "CG Charitable Data Requests",
+    "allowedRedirects": [
+      "https://datarequest.cgcharitable.org/auth/callback/cas",
+      "https://staging.datarequest.cgcharitable.org/auth/callback/cas"
+    ]
+  },
+  {
+    "id": "pathmark",
+    "name": "Pathmark Short-Term Long-Term Outcomes Platform",
+    "allowedRedirects": [
+      "https://pathmark.org/auth/callback/cas",
+      "https://demo.pathmark.org/auth/callback/cas",
+      "https://datashares.org/auth/callback/cas",
+      "https://datashares.org/auth/callback/cas/admin",
+      "https://test.datashares.org/auth/callback/cas",
+      "https://test.datashares.org/auth/callback/cas/admin"
+    ]
+  },
+  {
+    "id": "cg-general",
+    "name": "knowledgebase, ",
+    "allowedRedirects": [
+      "https://about.cgcharitable.org/auth/callback/cas",
+      "https://web.cgcharitable.org/auth/callback/cas",
+      "https://research.cgcharitable.org/auth/callback/cas"
     ]
   }
 ]
