@@ -118,6 +118,13 @@
       color: #f87171;
     }
     .msg.ok { color: #4ade80; }
+    .hint {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      text-align: center;
+      color: #64748b;
+    }
     .links {
       display: flex;
       justify-content: space-between;
@@ -164,6 +171,7 @@
         <button class="primary" type="submit" id="verify-btn" disabled>Verify</button>
       </form>
       <p class="msg" id="code-msg" role="alert"></p>
+      <p class="hint">Don't see it? Check your spam or junk folder — it can take a minute to arrive.</p>
       <div class="links">
         <button type="button" id="change-btn">Use a different email</button>
         <button type="button" id="resend-btn" disabled>Resend code</button>
