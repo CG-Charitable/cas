@@ -7,6 +7,7 @@ const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
+const { sendEmail } = require("./tools/mail.js");
 const { loadKeys, publicKeyToJwks } = require("./auth/keys.js");
 const { expose: exposeEndpoints } = require("./tools/listEndpoints.js");
 
@@ -37,6 +38,26 @@ const MS_AUTH_URL =
 const MS_TOKEN_URL =
   "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const MS_GRAPH_URL = "https://graph.microsoft.com/v1.0/me";
+
+// Email one-time-code login. Codes are sent via tools/mail.js (Gmail, SMTP
+// when EMAIL_TYPE=smtp, or local sendmail when EMAIL_TYPE=linux). If neither is configured, development mode
+// logs the code to the console instead, and production disables email login.
+const EMAIL_SENDING_CONFIGURED =
+  process.env.EMAIL_TYPE === "linux" ||
+  (process.env.EMAIL_TYPE === "smtp" &&
+    !!(process.env.SMTP_USER && process.env.SMTP_PASS)) ||
+  !!(process.env.GMAIL_USER && process.env.GMAIL_PASS);
+const EMAIL_LOGIN_ENABLED =
+  EMAIL_SENDING_CONFIGURED || NODE_ENV !== "production";
+
+// No 0/O or 1/I/L — codes are typed by hand, so avoid look-alike characters.
+const EMAIL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const EMAIL_CODE_LENGTH = 6;
+const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_CODE_MAX_ATTEMPTS = 3;
+const EMAIL_MAX_SENDS_PER_STATE = 3; // initial send + 2 resends
+const EMAIL_RESEND_COOLDOWN_MS = 30 * 1000;
+const EMAIL_MAX_SENDS_PER_HOUR = 10; // per address, across all login attempts
 
 // JWT issued by this server expires quickly — client apps must establish their
 // own session from the payload and should not store or forward this token.
@@ -92,10 +113,26 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const pendingStates = new Map();
 
+// Email login codes, keyed by the login's state. Only a SHA-256 hash of the
+// code is kept. Entry: { email, codeHash, expires, attempts, sends, lastSent }.
+const pendingEmailCodes = new Map();
+
+// Recent send timestamps per email address, to stop one inbox being flooded
+// by many parallel login attempts.
+const emailSendLog = new Map();
+
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of pendingStates) {
     if (now > val.expires) pendingStates.delete(key);
+  }
+  for (const [key, val] of pendingEmailCodes) {
+    if (now > val.expires) pendingEmailCodes.delete(key);
+  }
+  for (const [key, times] of emailSendLog) {
+    const recent = times.filter((t) => now - t < 60 * 60 * 1000);
+    if (recent.length) emailSendLog.set(key, recent);
+    else emailSendLog.delete(key);
   }
 }, 5 * 60 * 1000);
 
@@ -115,6 +152,20 @@ function consumeState(state) {
   if (!data) return null;
   pendingStates.delete(state);
   if (Date.now() > data.expires) return null;
+  return data;
+}
+
+// Like consumeState, but leaves the state in place — the email flow needs it
+// across several requests (send code, resend, each verify attempt). It is
+// consumed on successful login or when attempts run out.
+function peekState(state, provider) {
+  if (typeof state !== "string") return null;
+  const data = pendingStates.get(state);
+  if (!data || data.provider !== provider) return null;
+  if (Date.now() > data.expires) {
+    pendingStates.delete(state);
+    return null;
+  }
   return data;
 }
 
@@ -368,6 +419,200 @@ app.get("/auth/callback/microsoft", async (req, res) => {
     console.error("[AUTH] Microsoft callback error:", err.message);
     res.status(500).json({ error: "Microsoft authentication failed" });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Email one-time code
+// Same entry point shape as the OAuth providers, but the "provider" is our own
+// page: the user enters an email, gets a 6-character code, and types it in.
+// ---------------------------------------------------------------------------
+
+// Deliberately strict — the address ends up in mail headers, so keep it to
+// plain characters (no whitespace, quotes, or line breaks).
+const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
+
+function generateEmailCode() {
+  let code = "";
+  for (let i = 0; i < EMAIL_CODE_LENGTH; i++) {
+    code += EMAIL_CODE_ALPHABET[crypto.randomInt(EMAIL_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+function hashEmailCode(code) {
+  return crypto.createHash("sha256").update(code).digest();
+}
+
+async function sendEmailCode(email, code) {
+  if (!EMAIL_SENDING_CONFIGURED) {
+    console.log(`[AUTH] (dev, email not configured) Login code for ${email}: ${code}`);
+    return;
+  }
+  const minutes = EMAIL_CODE_TTL_MS / 60000;
+  await sendEmail(
+    email,
+    `Your sign-in code: ${code}`,
+    `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:420px;margin:0 auto;padding:32px 24px;color:#1e293b">
+        <h2 style="margin:0 0 8px;font-size:20px;font-weight:600">Your sign-in code</h2>
+        <p style="margin:0 0 24px;color:#64748b;font-size:14px">Enter this code to finish signing in.</p>
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:8px;text-align:center;padding:16px;background:#f1f5f9;border-radius:12px;color:#312e81">${code}</div>
+        <p style="margin:24px 0 0;color:#94a3b8;font-size:12px">This code expires in ${minutes} minutes. If you didn't try to sign in, you can ignore this email.</p>
+      </div>`
+  );
+}
+
+app.get("/auth/email", (req, res) => {
+  if (!EMAIL_LOGIN_ENABLED) {
+    return res
+      .status(503)
+      .json({ error: "Email login is not configured on this server" });
+  }
+  initOAuth(req, res, "email", (state) =>
+    `/auth/email/login?${new URLSearchParams({ state })}`
+  );
+});
+
+// The code-entry page. The state in the URL ties it to the client_id and
+// redirect_uri validated by /auth/email.
+app.get("/auth/email/login", (req, res) => {
+  if (!peekState(req.query.state, "email")) {
+    return res.status(403).json({ error: "Invalid or expired state" });
+  }
+  res.sendFile(path.join(__dirname, "pages", "email-login.html"));
+});
+
+app.post("/auth/email/send", async (req, res) => {
+  const { state } = req.body;
+  const email = String(req.body.email || "").trim().toLowerCase();
+
+  const stateData = peekState(state, "email");
+  if (!stateData) {
+    return res
+      .status(403)
+      .json({ error: "This sign-in link has expired.", restart: true });
+  }
+  if (!EMAIL_RE.test(email) || email.length > 254) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+
+  const now = Date.now();
+  const existing = pendingEmailCodes.get(state);
+  const sends = existing ? existing.sends : 0;
+
+  if (sends >= EMAIL_MAX_SENDS_PER_STATE) {
+    pendingEmailCodes.delete(state);
+    pendingStates.delete(state);
+    return res.status(429).json({
+      error: "Too many codes requested. Start over from the app you were signing into.",
+      restart: true,
+    });
+  }
+  if (existing && now - existing.lastSent < EMAIL_RESEND_COOLDOWN_MS) {
+    const wait = Math.ceil((EMAIL_RESEND_COOLDOWN_MS - (now - existing.lastSent)) / 1000);
+    return res
+      .status(429)
+      .json({ error: `Wait ${wait}s before requesting another code.`, resendIn: wait });
+  }
+
+  const recent = (emailSendLog.get(email) || []).filter(
+    (t) => now - t < 60 * 60 * 1000
+  );
+  if (recent.length >= EMAIL_MAX_SENDS_PER_HOUR) {
+    return res.status(429).json({
+      error: "Too many codes have been sent to this address. Try again later.",
+    });
+  }
+
+  const code = generateEmailCode();
+  try {
+    await sendEmailCode(email, code);
+  } catch (err) {
+    console.error("[AUTH] Email send error:", err.message);
+    return res.status(502).json({ error: "Couldn't send the email. Try again." });
+  }
+
+  recent.push(now);
+  emailSendLog.set(email, recent);
+
+  const expires = now + EMAIL_CODE_TTL_MS;
+  pendingEmailCodes.set(state, {
+    email,
+    codeHash: hashEmailCode(code),
+    expires,
+    attempts: 0,
+    sends: sends + 1,
+    lastSent: now,
+  });
+  // Keep the state alive at least as long as the code it now carries.
+  stateData.expires = Math.max(stateData.expires, expires);
+
+  res.json({
+    sent: true,
+    email,
+    expiresIn: EMAIL_CODE_TTL_MS / 1000,
+    resendIn: EMAIL_RESEND_COOLDOWN_MS / 1000,
+    resendsRemaining: EMAIL_MAX_SENDS_PER_STATE - (sends + 1),
+  });
+});
+
+app.post("/auth/email/verify", (req, res) => {
+  const { state } = req.body;
+  const code = String(req.body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  const stateData = peekState(state, "email");
+  if (!stateData) {
+    return res
+      .status(403)
+      .json({ error: "This sign-in link has expired.", restart: true });
+  }
+
+  const entry = pendingEmailCodes.get(state);
+  if (!entry || !entry.codeHash || Date.now() > entry.expires) {
+    pendingEmailCodes.delete(state);
+    return res
+      .status(410)
+      .json({ error: "That code has expired. Request a new one.", expired: true });
+  }
+
+  const matches =
+    code.length === EMAIL_CODE_LENGTH &&
+    crypto.timingSafeEqual(hashEmailCode(code), entry.codeHash);
+
+  if (!matches) {
+    entry.attempts++;
+    const attemptsRemaining = EMAIL_CODE_MAX_ATTEMPTS - entry.attempts;
+    if (attemptsRemaining <= 0) {
+      // Burn the code, but keep the entry so the send count and resend
+      // cooldown still apply. A new code can be requested while sends remain.
+      entry.codeHash = null;
+      return res.status(401).json({
+        error: "Too many incorrect attempts. Request a new code.",
+        attemptsRemaining: 0,
+        expired: true,
+      });
+    }
+    return res.status(401).json({
+      error: `Incorrect code. ${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left.`,
+      attemptsRemaining,
+    });
+  }
+
+  pendingEmailCodes.delete(state);
+  pendingStates.delete(state);
+
+  const userInfo = {
+    sub: entry.email,
+    name: entry.email.split("@")[0],
+    email: entry.email,
+    provider: "email",
+  };
+
+  setSessionCookie(res, userInfo);
+  const authToken = createJWT({ ...userInfo, client_id: stateData.client_id });
+  const url = new URL(stateData.redirect_uri);
+  url.searchParams.set("token", authToken);
+  res.json({ redirect: url.toString() });
 });
 
 // ---------------------------------------------------------------------------

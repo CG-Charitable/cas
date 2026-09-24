@@ -6,6 +6,7 @@
     "express": "^4.21.2",
     "google-auth-library": "^9.15.1",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^10.0.10",
     "path": "^0.12.7"
   },
   "scripts": {

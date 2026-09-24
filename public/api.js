@@ -11,6 +11,12 @@ function microsoftOAuth(clientId, redirectUri) {
   window.location.href = `/auth/microsoft?${params}`;
 }
 
+// Redirect the browser to the email one-time-code sign-in page.
+function emailLogin(clientId, redirectUri) {
+  const params = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri });
+  window.location.href = `/auth/email?${params}`;
+}
+
 // Verify a token returned by the auth server (server-to-server call from your backend).
 // Returns { valid: true, user: { sub, email, name, picture, provider } } or { valid: false }.
 async function verifyAuthToken(token) {
