@@ -39,11 +39,13 @@ const MS_TOKEN_URL =
   "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const MS_GRAPH_URL = "https://graph.microsoft.com/v1.0/me";
 
-// Email one-time-code login. Codes are sent via tools/mail.js (Gmail, or local
-// sendmail when EMAIL_TYPE=linux). If neither is configured, development mode
+// Email one-time-code login. Codes are sent via tools/mail.js (Gmail, SMTP
+// when EMAIL_TYPE=smtp, or local sendmail when EMAIL_TYPE=linux). If neither is configured, development mode
 // logs the code to the console instead, and production disables email login.
 const EMAIL_SENDING_CONFIGURED =
   process.env.EMAIL_TYPE === "linux" ||
+  (process.env.EMAIL_TYPE === "smtp" &&
+    !!(process.env.SMTP_USER && process.env.SMTP_PASS)) ||
   !!(process.env.GMAIL_USER && process.env.GMAIL_PASS);
 const EMAIL_LOGIN_ENABLED =
   EMAIL_SENDING_CONFIGURED || NODE_ENV !== "production";

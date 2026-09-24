@@ -1,10 +1,26 @@
 [
   {
-    "id": "app1",
+    "id": "default",
     "name": "My Application (Dev)",
     "allowedRedirects": [
-      "http://localhost:3001/auth/callback",
-      "http://localhost:8080/auth/callback"
+      "http://localhost/auth/callback/cas",
+      "http://localhost:3000/auth/callback/cas",
+      "https://test.msouthwick.com/auth/callback/cas",
+      "https://lf.msouthwick.com/auth/callback/cas"
+    ]
+  },
+  {
+    "id": "hangout",
+    "name": "My Application (Dev)",
+    "allowedRedirects": [
+      "https://hangout.msouthwick.com/auth/callback/cas"
+    ]
+  },
+  {
+    "id": "family",
+    "name": "new family app",
+    "allowedRedirects": [
+      "https://familyn.msouthwick.com/auth/callback/cas"
     ]
   }
 ]

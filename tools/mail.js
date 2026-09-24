@@ -38,6 +38,41 @@ function sendEmailGmail(to, subject, html) {
     });
 }
 
+// SMTP submission to a mail server we have an account on (e.g. the local
+// docker-mailserver). Port 587 uses STARTTLS and requires auth to relay.
+const smtpTransporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "localhost",
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_PORT === "465", // implicit TLS only on 465
+    requireTLS: true,
+    auth: {
+        user: process.env.SMTP_USER || "",
+        pass: process.env.SMTP_PASS || "",
+    },
+    // Connecting by IP/localhost while the cert names the public hostname.
+    tls: process.env.SMTP_TLS_SERVERNAME
+        ? { servername: process.env.SMTP_TLS_SERVERNAME }
+        : undefined,
+});
+
+/**
+ * Sends email via SMTP submission (SMTP_HOST / SMTP_USER / SMTP_PASS)
+ */
+function sendEmailSmtp(to, subject, html) {
+    if (LOG) console.log('Sending Email via SMTP');
+    const from = process.env.EMAIL_FROM || process.env.SMTP_USER;
+    return smtpTransporter
+        .sendMail({ from, replyTo: process.env.EMAIL_REPLY_TO, to, subject, html })
+        .then((info) => {
+            if (LOG) console.log("Email sent:", info.response);
+            return info.response;
+        })
+        .catch((error) => {
+            if (LOG) console.error("Error:", error);
+            throw error;
+        });
+}
+
 /**
  * Sends email using local postfix sendmail command (Linux)
  */
@@ -102,12 +137,15 @@ function sendEmailLinux(to, subject, html, options = {}) {
 
 /**
  * Sends email using configured method based on EMAIL_TYPE env variable
- * Defaults to Gmail if not specified
+ * ("smtp", "linux", or unset for Gmail)
  * @param {string|Array} to - Recipient email address(es)
  * @param {string} subject - Email subject
  * @param {string} html - Email body (HTML)
  */
 exports.sendEmail = function(to, subject, html) {
+    if (process.env.EMAIL_TYPE === "smtp") {
+        return sendEmailSmtp(to, subject, html);
+    }
     if (process.env.EMAIL_TYPE === "linux") {
         return sendEmailLinux(to, subject, html);
     }
