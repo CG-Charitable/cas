@@ -5,8 +5,59 @@
     "allowedRedirects": [
       "http://localhost/auth/callback/cas",
       "http://localhost:80/auth/callback/cas",
-      "http://localhost/auth/callback/cas/admin",
-      "http://localhost:80/auth/callback/cas/admin"
+      "http://localhost:80/auth/callback/cas/admin",
+      "https://test.msouthwick.com/auth/callback/cas",
+      "https://test.cgcharitable.org/auth/callback/cas",
+      "https://demo.pathmark.org/auth/callback/cas",
+      "https://devp.visetl.cgcharitable.org/auth/callback/cas",
+      "http://localhost:4200/auth/callback/cas"
+    ]
+  },
+  {
+    "id": "data-request",
+    "name": "CG Charitable Data Requests",
+    "allowedRedirects": [
+      "https://datarequest.cgcharitable.org/auth/callback/cas",
+      "https://devp.datarequest.cgcharitable.org/auth/callback/cas"
+    ]
+  },
+  {
+    "id": "pathmark",
+    "name": "Pathmark Short-Term Long-Term Outcomes Platform",
+    "allowedRedirects": [
+      "https://pathmark.org/auth/callback/cas",
+      "https://demo.pathmark.org/auth/callback/cas",
+      "https://datashares.org/auth/callback/cas",
+      "https://datashares.org/auth/callback/cas/admin",
+      "https://devp.datashares.org/auth/callback/cas",
+      "https://devp.datashares.org/auth/callback/cas/admin",
+      "https://test.datashares.org/auth/callback/cas",
+      "https://test.datashares.org/auth/callback/cas/admin"
+    ]
+  },
+  {
+    "id": "datashares-prod",
+    "name": "Datashares production",
+    "allowedRedirects": [
+      "https://datashares.org/auth/callback/cas",
+      "https://datashares.org/auth/callback/cas/admin"
+    ]
+  },
+  {
+    "id": "cg-general",
+    "name": "knowledgebase, ",
+    "allowedRedirects": [
+      "https://about.cgcharitable.org/auth/callback/cas",
+      "https://web.cgcharitable.org/auth/callback/cas",
+      "https://devp.research.cgcharitable.org/auth/callback/cas",
+      "https://research.cgcharitable.org/auth/callback/cas"
+    ]
+  },
+  {
+    "id": "cg-mcp",
+    "name": "CG-MCP Board Access",
+    "allowedRedirects": [
+        "https://mcp.cgcharitable.org/oauth/cas/callback"
     ]
   }
 ]
