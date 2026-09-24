@@ -92,6 +92,11 @@
       await fetch('/auth/logout');
       btn.textContent = 'Signed out';
       btn.classList.add('done');
+      setTimeout(() => {
+        btn.textContent = 'Sign out of SSO';
+        btn.classList.remove('done');
+        btn.disabled = false;
+      }, 5000);
     }
   </script>
 </body>
