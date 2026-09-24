@@ -1,7 +1,7 @@
 # CAS
 
 A small, self-hosted Centralized Authentication Service. Client applications
-redirect users here to sign in with Google or Microsoft, and get back a
+redirect users here to sign in with Google, Microsoft, or a one-time email code, and get back a
 short-lived RS256 JWT they can verify locally (via JWKS) or by calling this
 server.
 
@@ -22,6 +22,7 @@ node index.js
 | `AUTH_BASE_URL` | no (default `http://localhost:${PORT}`) | Public base URL used to build OAuth callback URLs |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | to enable Google login | From the [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
 | `MS_CLIENT_ID` / `MS_CLIENT_SECRET` | to enable Microsoft login | From the [Azure Portal](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps) |
+| `GMAIL_USER` / `GMAIL_PASS` / `EMAIL_FROM` | to send email login codes via Gmail | Gmail address + [app password](https://myaccount.google.com/apppasswords). Or set `EMAIL_TYPE=linux` to use local `sendmail`. Unconfigured: dev logs codes to the console, production disables email login. |
 | `SSO` | no (default `false`) | When `true`, a valid session cookie lets a user skip re-authentication on subsequent logins. Off by default — every login goes through the provider. |
 
 Google/Microsoft OAuth redirect URIs should point at:
@@ -49,8 +50,8 @@ HTTPS in production (localhost excepted).
 
 ## How a client app integrates
 
-1. Redirect the browser to `/auth/google` or `/auth/microsoft` with
-   `client_id` and `redirect_uri` query params.
+1. Redirect the browser to `/auth/google`, `/auth/microsoft`, or
+   `/auth/email` with `client_id` and `redirect_uri` query params.
 2. The user authenticates with the provider, then is redirected back to your
    `redirect_uri` with a `?token=...` JWT.
 3. Verify the token either:
@@ -60,7 +61,18 @@ HTTPS in production (localhost excepted).
 4. To sign a user out, send them to `/auth/logout` (optionally with
    `client_id` + `redirect_uri` to redirect afterward).
 
-`public/api.js` has small helper functions (`googleOAuth`, `microsoftOAuth`,
+### Email login
+
+`/auth/email` sends the user to a sign-in page on this server where they
+enter their email and receive a 6-character code (uppercase letters +
+digits, no look-alikes like `0/O` or `1/I`). Codes expire after 10 minutes,
+allow 3 attempts, and can be resent twice (30s cooldown). Each address can
+receive at most 10 codes per hour. Codes live in memory only, so a restart
+invalidates pending logins. The token payload is
+`{ sub: <email>, name: <email local part>, email, provider: "email" }` (no
+`picture`).
+
+`public/api.js` has small helper functions (`googleOAuth`, `microsoftOAuth`, `emailLogin`,
 `verifyAuthToken`, `request`) for driving this flow from a browser.
 
 ## Endpoints

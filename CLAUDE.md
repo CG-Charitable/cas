@@ -51,6 +51,15 @@ Map, or a JSON file on disk.
 5. The client app verifies that token — either locally via
    `/auth/jwks.json`, or server-to-server via `POST /auth/verify`.
 
+**Email login** (`/auth/email`) reuses `initOAuth()`, but its "provider"
+is our own page (`pages/email-login.html`, served at `/auth/email/login`).
+Unlike OAuth, the state is *peeked* (`peekState()`), not consumed, across
+`/auth/email/send` and `/auth/email/verify`, and consumed only on success or
+when resends run out. Codes are hashed in the in-memory `pendingEmailCodes`
+Map. Mail goes through `tools/mail.js`. The address ends up in mail
+headers, so `EMAIL_RE` is kept as a strict character allowlist — don't
+loosen it.
+
 **SSO skip-through:** `initOAuth()` will skip the provider round-trip
 entirely and immediately re-issue a token if the user already has a valid
 `cas_session` cookie. This is gated behind `SSO_ENABLED` (`process.env.SSO

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in with email</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .card {
+      width: 100%;
+      max-width: 400px;
+      padding: 2.5rem 2rem;
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .icon {
+      width: 48px; height: 48px;
+      margin: 0 auto 1.25rem;
+      display: grid; place-items: center;
+      border-radius: 12px;
+      background: rgba(129,140,248,0.12);
+      color: #818cf8;
+    }
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #f8fafc;
+      text-align: center;
+      margin-bottom: 0.4rem;
+    }
+    .sub {
+      color: #94a3b8;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-bottom: 1.75rem;
+      line-height: 1.45;
+    }
+    .sub strong { color: #e2e8f0; font-weight: 500; word-break: break-all; }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+    }
+    input[type=email] {
+      width: 100%;
+      padding: 0.75rem 0.9rem;
+      font-size: 1rem;
+      color: #f8fafc;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type=email]:focus, .code input:focus {
+      border-color: #818cf8;
+      box-shadow: 0 0 0 3px rgba(129,140,248,0.2);
+    }
+    .code {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .code input {
+      width: 100%;
+      max-width: 52px;
+      aspect-ratio: 5 / 6;
+      text-align: center;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 1.5rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #f8fafc;
+      background: #0f1117;
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .code.error input { border-color: #f87171; animation: shake 0.3s; }
+    @keyframes shake {
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+    button.primary {
+      width: 100%;
+      margin-top: 1.25rem;
+      padding: 0.75rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #fff;
+      background: #4f46e5;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button.primary:hover { background: #4338ca; }
+    button.primary:disabled { opacity: 0.55; cursor: default; }
+    .msg {
+      min-height: 1.25rem;
+      margin-top: 0.9rem;
+      font-size: 0.85rem;
+      text-align: center;
+      color: #f87171;
+    }
+    .msg.ok { color: #4ade80; }
+    .links {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid #2d3148;
+    }
+    .links button {
+      background: none;
+      border: none;
+      color: #818cf8;
+      font-size: 0.82rem;
+      cursor: pointer;
+      padding: 0.25rem 0;
+    }
+    .links button:disabled { color: #64748b; cursor: default; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+    </div>
+
+    <!-- Step 1: email -->
+    <section id="step-email">
+      <h1>Sign in with email</h1>
+      <p class="sub">We'll send a 6-character code to your inbox.</p>
+      <form id="email-form" novalidate>
+        <label for="email">Email address</label>
+        <input id="email" type="email" autocomplete="email" placeholder="you@example.com" required autofocus>
+        <button class="primary" type="submit" id="send-btn">Send code</button>
+      </form>
+      <p class="msg" id="email-msg" role="alert"></p>
+    </section>
+
+    <!-- Step 2: code -->
+    <section id="step-code" class="hidden">
+      <h1>Check your email</h1>
+      <p class="sub">Enter the code we sent to <strong id="sent-to"></strong>. It expires in 10 minutes.</p>
+      <form id="code-form" novalidate>
+        <div class="code" id="code-boxes"></div>
+        <button class="primary" type="submit" id="verify-btn" disabled>Verify</button>
+      </form>
+      <p class="msg" id="code-msg" role="alert"></p>
+      <div class="links">
+        <button type="button" id="change-btn">Use a different email</button>
+        <button type="button" id="resend-btn" disabled>Resend code</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const LENGTH = 6;
+    const state = new URLSearchParams(location.search).get("state");
+    const $ = (id) => document.getElementById(id);
+
+    let email = "";
+    let resendTimer = null;
+    let resendsRemaining = null;
+    let dead = false; // flow can't continue; user must restart from their app
+
+    // ---- code boxes -------------------------------------------------------
+    const boxes = [];
+    for (let i = 0; i < LENGTH; i++) {
+      const input = document.createElement("input");
+      input.inputMode = "text";
+      input.autocomplete = i === 0 ? "one-time-code" : "off";
+      input.maxLength = 1;
+      input.setAttribute("aria-label", `Character ${i + 1}`);
+      input.addEventListener("input", () => {
+        const v = clean(input.value);
+        if (v.length > 1) return fill(v, i); // autofill / mobile paste
+        input.value = v;
+        if (v && i < LENGTH - 1) boxes[i + 1].focus();
+        onCodeChange();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !input.value && i > 0) boxes[i - 1].focus();
+        if (e.key === "ArrowLeft" && i > 0) boxes[i - 1].focus();
+        if (e.key === "ArrowRight" && i < LENGTH - 1) boxes[i + 1].focus();
+      });
+      input.addEventListener("paste", (e) => {
+        e.preventDefault();
+        fill(clean(e.clipboardData.getData("text")), i);
+      });
+      input.addEventListener("focus", () => input.select());
+      boxes.push(input);
+      $("code-boxes").appendChild(input);
+    }
+
+    function clean(s) { return s.toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+    function code() { return boxes.map((b) => b.value).join(""); }
+
+    function fill(chars, start) {
+      for (let j = 0; j < chars.length && start + j < LENGTH; j++) {
+        boxes[start + j].value = chars[j];
+      }
+      boxes[Math.min(start + chars.length, LENGTH - 1)].focus();
+      onCodeChange();
+    }
+
+    function clearBoxes() {
+      boxes.forEach((b) => (b.value = ""));
+      boxes[0].focus();
+      onCodeChange();
+    }
+
+    function onCodeChange() {
+      $("code-boxes").classList.remove("error");
+      const complete = code().length === LENGTH;
+      $("verify-btn").disabled = !complete || dead;
+      if (complete && !dead) $("code-form").requestSubmit();
+    }
+
+    // ---- helpers ----------------------------------------------------------
+    async function post(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state, ...body }),
+      });
+      let data = {};
+      try { data = await res.json(); } catch {}
+      return { ok: res.ok, data };
+    }
+
+    function msg(id, text, ok = false) {
+      $(id).textContent = text || "";
+      $(id).classList.toggle("ok", ok);
+    }
+
+    function endFlow(text) {
+      dead = true;
+      msg("email-msg", text);
+      msg("code-msg", text);
+      ["send-btn", "verify-btn", "resend-btn", "change-btn"].forEach((id) => ($(id).disabled = true));
+      boxes.forEach((b) => (b.disabled = true));
+    }
+
+    function startResendCountdown(seconds) {
+      clearInterval(resendTimer);
+      const btn = $("resend-btn");
+      if (resendsRemaining === 0) {
+        btn.disabled = true;
+        btn.textContent = "No resends left";
+        return;
+      }
+      let left = seconds;
+      const tick = () => {
+        if (dead) return clearInterval(resendTimer);
+        if (left <= 0) {
+          clearInterval(resendTimer);
+          btn.disabled = false;
+          btn.textContent = "Resend code";
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = `Resend in ${left--}s`;
+      };
+      tick();
+      resendTimer = setInterval(tick, 1000);
+    }
+
+    function showStep(which) {
+      $("step-email").classList.toggle("hidden", which !== "email");
+      $("step-code").classList.toggle("hidden", which !== "code");
+      if (which === "email") $("email").focus();
+      else clearBoxes();
+    }
+
+    async function sendCode(msgId) {
+      const { ok, data } = await post("/auth/email/send", { email });
+      if (data.restart) return endFlow(data.error), false;
+      if (!ok) {
+        msg(msgId, data.error || "Something went wrong.");
+        if (data.resendIn) startResendCountdown(data.resendIn);
+        return false;
+      }
+      resendsRemaining = data.resendsRemaining;
+      $("sent-to").textContent = data.email;
+      startResendCountdown(data.resendIn);
+      return true;
+    }
+
+    // ---- step 1 -----------------------------------------------------------
+    $("email-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (dead) return;
+      email = $("email").value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return msg("email-msg", "Enter a valid email address.");
+      }
+      const btn = $("send-btn");
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      msg("email-msg", "");
+      const sent = await sendCode("email-msg");
+      btn.textContent = "Send code";
+      if (!dead) btn.disabled = false;
+      if (sent) {
+        showStep("code");
+        msg("code-msg", "");
+      }
+    });
+
+    // ---- step 2 -----------------------------------------------------------
+    $("code-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (dead || code().length !== LENGTH) return;
+      const btn = $("verify-btn");
+      btn.disabled = true;
+      btn.textContent = "Verifying…";
+      boxes.forEach((b) => (b.disabled = true));
+
+      const { ok, data } = await post("/auth/email/verify", { code: code() });
+
+      if (ok && data.redirect) {
+        msg("code-msg", "Signed in — redirecting…", true);
+        btn.textContent = "Signed in";
+        location.replace(data.redirect);
+        return;
+      }
+
+      btn.textContent = "Verify";
+      if (data.restart) return endFlow(data.error);
+
+      boxes.forEach((b) => (b.disabled = !!data.expired));
+      $("code-boxes").classList.add("error");
+      msg("code-msg", data.error || "Something went wrong.");
+      if (data.expired) {
+        boxes.forEach((b) => (b.value = ""));
+        if (resendsRemaining === 0) endFlow(data.error + " Start over from the app you were signing into.");
+      } else {
+        boxes.forEach((b) => (b.value = ""));
+        boxes[0].focus();
+      }
+    });
+
+    $("resend-btn").addEventListener("click", async () => {
+      if (dead) return;
+      $("resend-btn").disabled = true;
+      msg("code-msg", "");
+      if (await sendCode("code-msg")) {
+        boxes.forEach((b) => (b.disabled = false));
+        clearBoxes();
+        msg("code-msg", "New code sent.", true);
+      }
+    });
+
+    $("change-btn").addEventListener("click", () => {
+      msg("email-msg", "");
+      showStep("email");
+    });
+
+    if (!state) endFlow("Missing sign-in state. Start over from the app you were signing into.");
+  </script>
+</body>
+</html>
